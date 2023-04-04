@@ -22,6 +22,7 @@ from floodpy.Floodwater_classification.Classification import Calc_flood_map
 # Agriculture fields extraction
 from floodpy.Download.Sentinel_2_download import Download_S2_data
 from floodpy.Preprocessing_S2_data.sts import sentimeseries
+from floodpy.utils.S2_background import get_S2_background
 
 print('FLOODPY - FLOOd PYthon toolbox')
 print('Copyright (c) 2021-2023 Kleanthis Karamvasis, Alekos Falagas')
@@ -37,7 +38,8 @@ STEP_LIST = [
     'Preprocessing_S1_data',
     'Statistical_analysis',
     'Floodwater_classification',
-    'Download_worldcover_LC']
+    'Download_worldcover_LC',
+    'Download_S2_background']
 
 ##########################################################################
 STEP_HELP = """Command line options for steps processing with \n names are chosen from the following list:
@@ -66,17 +68,6 @@ REFERENCE = """
      Karamvasis K., Karathanassi V. FLOMPY: An Open-Source Toolbox for 
      Floodwater Mapping Using Sentinel-1 Intensity Time Series. 
      Water. 2021; 13(21):2943. https://doi.org/10.3390/w13212943 
-     
-     Gounari 0., Falagas A., Karamvasis K., Tsironis V., Karathanassi V.,
-     Karantzalos K.: Floodwater Mapping & Extraction of Flood-Affected 
-     Agricultural Fields. Living Planet Symposium Bonn 23-27 May 2022.      
-     https://drive.google.com/file/d/1HiGkep3wx45gAQT6Kq34CdECMpQc8GUV/view?usp=sharing
-
-     Zotou I., Karamvasis K., Karathanassi V., Tsihrintzis V.: Sensitivity of a coupled 1D/2D 
-     model in input parameter variation exploiting Sentinel-1-derived flood map. 
-     7th IAHR Europe Congress. September 7-9, 2022. Page 247 at 
-     https://www.iahreuropecongress.org/PDF/IAHR2022_ABSTRACT_BOOK.pdf
-     
 """
 
 def create_parser():
@@ -298,7 +289,7 @@ class FloodwaterEstimation:
                           End_time = self.End_time,
                           relOrbit = self.relOrbit,
                           flood_datetime = self.flood_datetime,
-                          time_sleep=60, # 1 minute
+                          time_sleep=1, # 1 minute
                           max_tries=100,
                           download=True)
 
@@ -310,13 +301,11 @@ class FloodwaterEstimation:
         
         return 0
     
-    def run_preprocessing_S1_data(self, step_name):
+    def run_preprocessing_S1_data(self, step_name, overwrite = True):
         
         Get_images_for_baseline_stack(projectfolder = self.projectfolder,
-                                      ERA5_dir = self.ERA5_dir,
                                       S1_dir = self.S1_dir,
-                                      Start_time = self.Start_time,
-                                      End_time = self.End_time,
+                                      Precipitation_data = self.precipitation_df,
                                       flood_datetime = self.flood_datetime,
                                       days_back = self.days_back,
                                       rain_thres=self.rain_thres)
@@ -326,7 +315,8 @@ class FloodwaterEstimation:
                           graph_dir = self.graph_dir,
                           S1_dir = self.S1_dir,
                           geojson_S1 = self.geojson_S1,
-                          Preprocessing_dir = self.Preprocessing_dir) 
+                          Preprocessing_dir = self.Preprocessing_dir,
+                          overwrite = overwrite) 
         
         return 0 
     
@@ -360,22 +350,15 @@ class FloodwaterEstimation:
     def plot_results(self, print_aux, plot):
         pass
 
-    def run_download_S2_data(self, step_name):
+    def run_download_S2_background(self, step_name):
+       
+        self.S2_RGB_background = get_S2_background(self.geojson_S1,
+                                        self.scihub_username, 
+                                        self.scihub_password, 
+                                        self.Start_time,
+                                        self.End_time,
+                                        self.S2_dir)
 
-        Download_S2_data(
-                        AOI = self.geojson_S1,
-                        user = self.scihub_username,
-                        passwd = self.scihub_password,
-                        Start_time = self.Start_time,
-                        End_time = self.End_time,
-                        write_dir = self.S2_dir,
-                        product = 'S2MSI2A',
-                        download = False,
-                        cloudcoverage = 100,
-                        to_file = True)
-
-        print("Sentinel-2 data have been successfully downloaded")
-        
         return 0
     
     def run_download_landcover(self, step_name):
@@ -409,6 +392,8 @@ class FloodwaterEstimation:
             elif sname == 'Download_worldcover_LC':
                 self.run_download_landcover(sname)           
             
+            elif sname == "Download_S2_background":
+                self.run_download_S2_background(sname)
         
         # plot result (show aux visualization message more multiple steps processing)
         print_aux = len(steps) > 1
