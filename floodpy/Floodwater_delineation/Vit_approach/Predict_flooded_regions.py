@@ -66,8 +66,15 @@ def predict_flooded_regions(Floodpy_app, ViT_model_filename, device):
 
     # Concatenate input data as expected from the model (post,pre1,pre2)
     input_data = torch.cat((post_event_norm, pre_event_1_norm, pre_event_2_norm), dim=0)
+    
+    # Padding (left, right, top, bottom)
+    padding_size = (patch_size, patch_size, patch_size, patch_size)
 
-    [bands, rows, cols] = input_data.shape
+    # Apply padding using F.pad
+    input_data_pad = F.pad(input_data, padding_size, mode='constant', value=0)   
+
+    [bands, rows, cols] = input_data_pad.shape
+    
     predictions_list = []
 
     for starting_point in starting_points:
@@ -81,7 +88,7 @@ def predict_flooded_regions(Floodpy_app, ViT_model_filename, device):
         ending_point_y =  num_patches_y*patch_size+starting_point
 
         # Select section from original image and add a batch dimension (1, B, H, W) since unfold expects a batched input
-        input_data_section  = torch.tensor(input_data[:,starting_point:ending_point_y, starting_point:ending_point_x]).unsqueeze(0)
+        input_data_section  = torch.tensor(input_data_pad[:,starting_point:ending_point_y, starting_point:ending_point_x]).unsqueeze(0)
         
         # Use unfold to extract patches
         # It extracts patches as columns of shape (B * patch_size * patch_size, L),
@@ -132,13 +139,9 @@ def predict_flooded_regions(Floodpy_app, ViT_model_filename, device):
     del predictions_list
     prediction_data_median = np.nanmedian(prediction_data_array, axis=0).squeeze()
 
+    prediction_data = prediction_data_median[patch_size:-patch_size, patch_size:-patch_size]
+
     save_to_netcdf(S1_dataset = S1_dataset,
-                    prediction_data = prediction_data_median,
+                    prediction_data = prediction_data,
                     flooded_region_filename = Floodpy_app.Flood_map_dataset_filename,
                     flooded_regions_value = 2)
-        
-                    
-        
-
-
-
